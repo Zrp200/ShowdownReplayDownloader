@@ -167,7 +167,7 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
         stream.pipe(file)
 
         console.log(
-            `Opened replay ${data.p1} vs ${data.p2} (${
+            `Opened replay ${data.players[0]} vs ${data.players[1]} (${
                 data.format
             } turns ${startTurn}-${endTurn})\nSaving Replay..  (this may take a while.. preferably not more than ${(
                 (totalTurns * 7) /
