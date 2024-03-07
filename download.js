@@ -41,12 +41,12 @@ async function checkForVictory(page, endTurn) {
 }
 
 // Create a FFmpeg command to fix the metadata
-async function fixwebm(fileId) {
+async function fixwebm(file, tmpFile) {
     return new Promise((resolve, reject) => {
-        const command = ffmpeg(`./replays/replay-${fileId}-temp.webm`)
+        const command = ffmpeg(tmpFile)
             .withVideoCodec("copy")
             .withAudioCodec("copy") // Copy the video and audio streams without re-encoding
-            .output(`./replays/replay-${fileId}.webm`)
+            .output(file)
             .on("end", () => {
                 resolve()
             })
@@ -101,11 +101,10 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
     }
     const totalTurns = endTurn - Math.max(startTurn - 1, 0)
     if (playToVictory) endTurn++; // disable check
-    const fileId = generateRandom()
+    const filename = `replays/replay-${generateRandom()}.webm`
+    const tmpFile = filename + ".tmp"
     try {
-        const file = fs.createWriteStream(
-            `./replays/replay-${fileId}-temp.webm`
-        )
+        const file = fs.createWriteStream(tmpFile)
         const page = await browser.newPage()
         await page.setViewport({ width: 1920, height: 1080 }) // 1920 x 1080 screen resolution
         if (params) {
@@ -187,13 +186,8 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
         file.close()
 
         console.log(`Finished recording ${link}`)
-        await fixwebm(fileId) // metadata needs to be added for seeking video
-        console.log(
-            `Recording Saved!\nLocation -> replays/replay-${fileId}.webm`
-        )
-        try {
-            fs.unlinkSync(`./replays/replay-${fileId}-temp.webm`)
-        } catch {}
+        await fixwebm(filename, tmpFile) // metadata needs to be added for seeking video
+        console.log("Recording Saved!\nLocation -> " + filename)
 
         try {
             await page.close()
@@ -201,10 +195,9 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
             console.log(error)
         }
     } catch (err) {
-        try {
-            fs.unlinkSync(`./replays/replay-${fileId}-temp.webm`)
-        } catch {}
         console.log(`An error occured while downloading ${link}\n` + err)
+    } finally {
+        try { fs.unlinkSync(tmpFile) } catch {}
     }
 }
 
