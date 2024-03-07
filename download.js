@@ -59,7 +59,7 @@ async function fixwebm(fileId) {
     })
 }
 
-async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
+async function download(link, browser, nochat, nomusic, noaudio, noteams, theme, speed) {
     let turns
     if (typeof link === 'object') {
         turns = link.turns
@@ -120,6 +120,9 @@ async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
                 .bar-wrapper {
                     margin: 0 0 !important;
                 }
+                
+                ${noteams ? ".leftbar, .rightbar { display: none; }" : ""}
+                
                 .battle {
                     top: 0px !important;
                     left: 0px !important;
@@ -239,6 +242,11 @@ const argv = yargs(process.argv.slice(2))
         type: "boolean",
         default: false,
     })
+    .option("noteams", {
+        describe: "Will not show teams",
+        type: "boolean",
+        default: false,
+    })
     .option("theme", {
         alias: "t",
         describe: "Color Scheme",
@@ -258,6 +266,7 @@ const argv = yargs(process.argv.slice(2))
     let links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
     const nomusic = argv.nomusic
     const noaudio = argv.noaudio
+    const {noteams} = argv
     const speed = argv.speed
     const nochat = argv.nochat
     const theme = argv.theme
@@ -330,8 +339,9 @@ const argv = yargs(process.argv.slice(2))
                         nochat,
                         nomusic,
                         noaudio,
+                        noteams,
                         theme,
-                        speed
+                        speed,
                     )
                 )
 
@@ -346,6 +356,7 @@ const argv = yargs(process.argv.slice(2))
                 nochat,
                 nomusic,
                 noaudio,
+                noteams,
                 theme,
                 speed
             ) // record one by one
