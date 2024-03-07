@@ -2,6 +2,7 @@ const { launch, getStream } = require("puppeteer-stream")
 const ffmpeg = require("fluent-ffmpeg")
 const fs = require("fs")
 const yargs = require("yargs")
+const open = require("opener");
 
 async function waitUntilVictory(timeout, page, endTurn) {
     let ret = new Promise(async (resolve, reject) => {
@@ -27,7 +28,7 @@ async function checkForVictory(page, endTurn) {
 
         let latest = victory[victory.length - 1]
         if (latest && last !== latest) {
-            //console.log(latest) // for debugging progress, would prefer a progress bar instead
+            if(debug) console.log(latest) // for debugging progress, would prefer a progress bar instead
             last = latest
         }
         const endViaTurn = latest === 'Turn ' + endTurn;
@@ -188,6 +189,7 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
         console.log(`Finished recording ${link}`)
         await fixwebm(filename, tmpFile) // metadata needs to be added for seeking video
         console.log("Recording Saved!\nLocation -> " + filename)
+        if(debug) open('./' + filename)
 
         try {
             await page.close()
@@ -252,14 +254,23 @@ const argv = yargs(process.argv.slice(2))
         type: "string",
         default: "all",
     })
+    .option("debug", {
+        alias: 'd',
+        describe: 'enable debug functionality - automatically open image and print battle log to console',
+        type: 'boolean',
+        default: 'false'
+    })
     .help("h")
     .alias("h", "help").argv
+
+let debug
 
 ;(async () => {
     let links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
     const nomusic = argv.nomusic
     const noaudio = argv.noaudio
     const {noteams} = argv
+    debug = argv.debug
     const speed = argv.speed
     const nochat = argv.nochat
     const theme = argv.theme
