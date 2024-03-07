@@ -151,13 +151,8 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
         // customization done, now remove scrollbar by making below elements invisible
         await page.addStyleTag({
             content: `
-                .replay-controls {
-                    display: none !important;
-                }
-                #LeaderboardBTF {
-                    display: none !important;
-                }
-                `,
+                .replay-controls { display: none !important; }
+                #LeaderboardBTF { display: none !important; }`,
         })
         const stream = await getStream(page, {
             audio: !noaudio, // no longer a necessity, can be left as true
@@ -365,7 +360,7 @@ let debug
                 speed
             ) // record one by one
     }
-    console.log("Thankyou for utilising Showdown Replay Downloader!!")
+    console.log("Thank you for utilising Showdown Replay Downloader!!")
     try {
         await browser.close()
     } catch {}
