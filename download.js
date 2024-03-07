@@ -3,7 +3,7 @@ const ffmpeg = require("fluent-ffmpeg")
 const fs = require("fs")
 const yargs = require("yargs")
 
-async function waitUntilVictory(timeout, page) {
+async function waitUntilVictory(timeout, page, endTurn) {
     let ret = new Promise(async (resolve, reject) => {
         setTimeout(() => {
             if (!ret.isResolved) {
@@ -11,26 +11,31 @@ async function waitUntilVictory(timeout, page) {
             }
         }, timeout)
 
-        await checkForVictory(page)
+        await checkForVictory(page, endTurn)
         resolve()
     })
     return ret
 }
 
-async function checkForVictory(page) {
+let last = undefined
+
+async function checkForVictory(page, endTurn) {
     try {
-        victory = await page.$$eval('div[class="battle-history"]', (els) =>
+        const victory = await page.$$eval('*[class="battle-history"]', (els) =>
             els.map((e) => e.textContent)
         )
-        victory = victory[victory.length - 1].endsWith(" won the battle!")
 
-        if (!victory) {
-            // Wait for 1 second before calling checkForVictory again
-            await new Promise((resolve) => setTimeout(resolve, 1000))
-            await checkForVictory(page)
-        } else {
-            return
+        let latest = victory[victory.length - 1]
+        if (latest && last !== latest) {
+            //console.log(latest) // for debugging progress, would prefer a progress bar instead
+            last = latest
         }
+        const endViaTurn = latest === 'Turn ' + endTurn;
+        if (endViaTurn) page.keyboard.type('k') // pause
+        if (endViaTurn || latest.endsWith(" won the battle!")) return
+        // Wait for 1 second before calling checkForVictory again
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        await checkForVictory(page, endTurn)
     } catch {}
 }
 
@@ -54,6 +59,14 @@ async function fixwebm(fileId) {
 }
 
 async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
+    let turns
+    if (typeof link === 'object') {
+        turns = link.turns
+        link = link.link
+    }
+    const query = link.split('?', 2)
+    let params = query.length === 1 ? Array() : Array.of(...(query.length > 1 && query[1].split('&')))
+    link = query[0]
     if (
         !(
             link.startsWith("https://replay.pokemonshowdown.com/") ||
@@ -72,7 +85,21 @@ async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
     }
     const data = await response.json()
     const matches = Array.from(data.log.matchAll(/\n\|turn\|(\d+)\n/g))
-    const totalTurns = parseInt(matches[matches.length - 1][1])
+    const startTurn = (turns && turns.start) || 0
+    if (startTurn > 0) params = Array.of(...params, 'turn=' + startTurn)
+    let endTurn = parseInt(matches[matches.length - 1][1]);
+    let playToVictory = true;
+    if (turns && turns.end) {
+        if (turns.end > endTurn) {
+            console.log(`Invalid end turn ${turns.end} (total turns=${endTurn})`);
+            return;
+        } else if (endTurn !== turns.end) {
+            playToVictory = false
+            endTurn = turns.end;
+        }
+    }
+    const totalTurns = endTurn - Math.max(startTurn - 1, 0)
+    if (playToVictory) endTurn++; // disable check
     const fileId = generateRandom()
     try {
         const file = fs.createWriteStream(
@@ -80,9 +107,10 @@ async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
         )
         const page = await browser.newPage()
         await page.setViewport({ width: 1920, height: 1080 }) // 1920 x 1080 screen resolution
-        await page.goto(link, {
-            waitUntil: "load",
-        })
+        if (params) {
+            link += '?' + params.join('&')
+        }
+        await page.goto(link, { waitUntil: "load", })
         await page.addStyleTag({
             content: `
                 header {
@@ -103,7 +131,7 @@ async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
                 }
                 `,
         })
-        await page.waitForSelector(".playbutton")
+        //await page.waitForSelector(".playbutton") // playbutton doesn't appear if we use ?turn query
         // Customization
         // Default: music: yes, audio: yes, video: yes (why would anyone want to not record video..), speed: normal, color scheme: automatic, recordChat: yes
         // Example for if you want your replay speed to be changed dynamically per individual video on total turns basis:-
@@ -131,13 +159,13 @@ async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
             audio: !noaudio, // no longer a necessity, can be left as true
             video: true,
         })
-        await page.click('button[name="play"]')
+        await page.keyboard.type('k')
         stream.pipe(file)
 
         console.log(
             `Opened replay ${data.p1} vs ${data.p2} (${
                 data.format
-            })\nSaving Replay..  (this may take a while.. preferably not more than ${(
+            } turns ${startTurn}-${endTurn})\nSaving Replay..  (this may take a while.. preferably not more than ${(
                 (totalTurns * 7) /
                 60
             ).toFixed(2)} minutes)\n[*estimates are calced at normal speed*]`
@@ -146,7 +174,7 @@ async function download(link, browser, nochat, nomusic, noaudio, theme, speed) {
         // Start checking for victory, upto 5 minutes (aka record time limit)
         // You might want to modify this for super long videos as with endless battle clause, a battle can last upto 1000 turns which is approx 1 hour and 56 minutes at normal speed
         try {
-            await waitUntilVictory(150000, page)
+            await waitUntilVictory(150000, page, endTurn)
         } catch {}
         // Wait for 2 seconds so that the battle has completely ended as we read the text earlier than it getting fully animated
         await new Promise((resolve) => setTimeout(resolve, 1500))
@@ -226,13 +254,26 @@ const argv = yargs(process.argv.slice(2))
     .alias("h", "help").argv
 
 ;(async () => {
-    const links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
+    let links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
     const nomusic = argv.nomusic
     const noaudio = argv.noaudio
     const speed = argv.speed
     const nochat = argv.nochat
     const theme = argv.theme
     let bulk = argv.bulk
+
+    for (let i = links.length - 1; i > 0; i--) {
+        let match = links[i].match(/(\d+)?-(\d+)?/);
+        if (match) {
+            // merge
+            links.pop();
+            links[i - 1] = {
+                link: links[i - 1],
+                turns: {start: match[1] && parseInt(match[1]), end: match[2] && parseInt(match[2])}
+            };
+            i--;
+        }
+    }
 
     if (parseInt(bulk) && bulk >= 1) {
         bulk = parseInt(bulk)
