@@ -33,8 +33,9 @@ async function checkForVictory(page, endTurn) {
         const endViaTurn = latest === 'Turn ' + endTurn;
         if (endViaTurn) page.keyboard.type('k') // pause
         if (endViaTurn || latest.endsWith(" won the battle!")) return
-        // Wait for 1 second before calling checkForVictory again
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        // disable waiting to get a more accurate cutoff point, need to find a better way to track progress. event-based?
+        // // Wait for 1 second before calling checkForVictory again
+        // await new Promise((resolve) => setTimeout(resolve, 1000))
         await checkForVictory(page, endTurn)
     } catch {}
 }
