@@ -322,8 +322,9 @@ let debug
             )
     }
 
-    width = nochat ? 655 : 1175
-    height = 540 // 340 original (added +200 due to two chrome's popups 100h each of (a) -> download non-test version chrome and (b) -> Chrome is being controlled by automated test software)
+    width = 1175
+    if (nochat) width -= 517
+    height = 546 // 340 original (added +200 due to two chrome's popups 100h each of (a) -> download non-test version chrome and (b) -> Chrome is being controlled by automated test software)
     const args = [`--window-size=${width},${height}`, `--headless=new`]
 
     const browser = await launch({
