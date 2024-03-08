@@ -325,7 +325,7 @@ const argv = yargs(process.argv.slice(2))
         alias: 'd',
         describe: 'enable debug functionality - automatically open image and print battle log to console',
         type: 'boolean',
-        default: 'false'
+        default: false,
     })
     .option("gif", {
         type: "boolean",
