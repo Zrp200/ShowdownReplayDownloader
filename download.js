@@ -279,8 +279,7 @@ let debug
     for (let i = links.length - 1; i > 0; i--) {
         let match = links[i].match(/(\d+)?-(\d+)?/);
         if (match) {
-            // merge
-            links.pop();
+            links.splice(i, 1) // remove at this index
             links[i - 1] = {
                 link: links[i - 1],
                 turns: {start: match[1] && parseInt(match[1]), end: match[2] && parseInt(match[2])}
