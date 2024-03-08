@@ -18,33 +18,46 @@ async function waitUntilVictory(timeout, page, endTurn) {
     return ret
 }
 
-async function checkForVictory(page, endTurn, logsize=0, curTurn=0) {
+async function checkForVictory(page, endTurn, state = {turn: 0, part: 0, logSize: 0, msg: null}) {
     try {
-        const victory = await page.$$eval('div[class="battle-history"]', (els) =>
-            els.map((e) => e.textContent)
-        )
+        const [victory, msg, turn] = await Promise.all([
+            page.$$eval('div[class="battle-history"]', els => els.map(e => e.textContent)),
+            page.$$eval('*[class="messagebar message"]', els => els.map(e => e.textContent)),
+            page.$$eval('.turn', els => els.pop().textContent)
+                .then(it => it.split(' ')[1])
+                .then(parseInt),
+        ])
 
-        let turn = await page.$$eval('.turn', (els) => els.pop().textContent)
-            .then(it => it.charAt(it.length-1))
-
-        if (turn > curTurn) {
-            if(debug) console.log(turn)
-            curTurn = turn
-            if(endTurn <= curTurn) return
+        if (turn > state.turn) {
+            if (debug) console.log(turn)
+            state.turn = turn
+            state.part = 0
+            if (turn >= endTurn) return
         }
 
-        if (victory.length > logsize) {
-            if (debug) while (victory.length > logsize) console.log(victory[logsize++]);
-            else logsize = victory.length
-            if (victory[logsize-1].endsWith(" won the battle!")) {
+        // noinspection EqualityComparisonWithCoercionJS
+        if (String(msg) != String(state.msg)) {
+            // split the turn into sections based on message log state
+            state.msg = msg
+            const turnPart = parseFloat(turn + '.' + ++state.part)
+            if (debug) console.log(turnPart)
+            if (turnPart === endTurn) return
+        }
+
+        if (victory.length > state.logSize) {
+            if (debug) {
+                if (!state.logSize) state.logSize = victory.length - 1
+                while (victory.length > state.logSize) console.log(victory[state.logSize++]);
+            } else state.logSize = victory.length
+            if (victory[state.logSize - 1].endsWith(" won the battle!")) {
                 // Wait for 2 seconds so that the battle has completely ended as we read the text earlier than it getting fully animated
                 await new Promise((resolve) => setTimeout(resolve, 1500))
                 return
             }
         }
-        // need to find a better way to track progress. event-based?
-        await new Promise((resolve) => setTimeout(resolve,1))
-        await checkForVictory(page, endTurn, logsize, curTurn)
+
+        //await new Promise((resolve) => setTimeout(resolve, 1))
+        await checkForVictory(page, endTurn, state)
     } catch {}
 }
 
@@ -277,12 +290,12 @@ let debug
     let bulk = argv.bulk
 
     for (let i = links.length - 1; i > 0; i--) {
-        let match = links[i].match(/(\d+)?-(\d+)?/);
+        let match = links[i].match(/(\d+)?-((?:[0-9]*[.])?[0-9]+)?/);
         if (match) {
             links.splice(i, 1) // remove at this index
             links[i - 1] = {
                 link: links[i - 1],
-                turns: {start: match[1] && parseInt(match[1]), end: match[2] && parseInt(match[2])}
+                turns: {start: match[1] && parseInt(match[1]), end: match[2] && parseFloat(match[2])}
             };
             i--;
         }
