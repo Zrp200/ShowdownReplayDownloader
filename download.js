@@ -117,7 +117,7 @@ async function makeGif(file) {
         .catch(console.error)
 }
 
-async function download(link, browser, nochat, nomusic, noaudio, noteams, theme, speed) {
+async function download(link, browser, {nochat, nomusic, noaudio, noteams, theme, speed, gif}) {
     let turns
     if (typeof link === 'object') {
         turns = link.turns
@@ -326,13 +326,7 @@ let debug
 
 ;(async () => {
     let links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
-    const nomusic = argv.nomusic
-    const noaudio = argv.noaudio
-    const {noteams} = argv
     debug = argv.debug
-    const speed = argv.speed
-    const nochat = argv.nochat
-    const theme = argv.theme
     let bulk = argv.bulk
 
     for (let i = links.length - 1; i > 0; i--) {
@@ -381,9 +375,9 @@ let debug
             )
     }
 
-    width = 1175
-    if (nochat) width -= 517
-    height = 546 // 340 original (added +200 due to two chrome's popups 100h each of (a) -> download non-test version chrome and (b) -> Chrome is being controlled by automated test software)
+    let width = 1175
+    if (argv.nochat) width -= 517
+    const height = 546 // 340 original (added +200 due to two chrome's popups 100h each of (a) -> download non-test version chrome and (b) -> Chrome is being controlled by automated test software)
     const args = [`--window-size=${width},${height}`, `--headless=new`]
 
     const browser = await launch({
@@ -394,35 +388,13 @@ let debug
     if (links.length > 1 && (bulk === "all" || bulk > 1)) {
         let bulkRecord = []
         for (let recordLinks of toRecord) {
-            for (let link of recordLinks)
-                bulkRecord.push(
-                    download(
-                        link,
-                        browser,
-                        nochat,
-                        nomusic,
-                        noaudio,
-                        noteams,
-                        theme,
-                        speed,
-                    )
-                )
+            for (let link of recordLinks) bulkRecord.push(download(link, browser, argv))
 
             await Promise.all(bulkRecord) // wait on all recordings to occur simultaneously
             bulkRecord = [] // reset array
         }
     } else {
-        for (let link of links)
-            await download(
-                link,
-                browser,
-                nochat,
-                nomusic,
-                noaudio,
-                noteams,
-                theme,
-                speed
-            ) // record one by one
+        for (let link of links) await download(link, browser, argv) // record one by one
     }
     console.log("Thank you for utilising Showdown Replay Downloader!!")
     try {
