@@ -99,22 +99,34 @@ async function makeGif(file) {
             resolve()
         })
         .on('error', reject)
-    console.log()
-    return new Promise((resolve, reject) => withBar(resolve, reject, ffmpeg(file))
-        .inputOptions('-y')
-        .outputOptions("-vf palettegen")
-        .save(palette)
-    ).then(() => new Promise((resolve, reject) => withBar(resolve, reject, ffmpeg())
-            .addInput(file)
+
+    const resized = filename + '.resize.webm'
+    return new Promise((resolve, reject) => withBar(resolve, reject,
+        ffmpeg(file)
+            .inputOptions('-y')
+            .videoFilter([
+                "crop=1200:890:200:5",
+                "scale=600:-1",
+            ])
+            .save(resized)
+        )
+    ).then(() => new Promise((resolve, reject) =>
+        withBar(resolve, reject, ffmpeg(resized))
+            .videoFilter('palettegen')
+            .save(palette)
+    )).then(() => new Promise((resolve, reject) => withBar(resolve, reject, ffmpeg())
+            .addInput(resized)
             .addInput(palette)
             .addInputOption("-filter_complex paletteuse")
             .addInputOption("-r 10")
-            .outputFPS(20)
+            .outputFPS(20) // todo automatically determine fps by duration
             .save(gif)
         )
     )
-        .then(() => fs.rmSync(palette))
         .catch(console.error)
+        .finally(() => fs.rmSync(palette))
+        .catch(() => {}) // do nothing
+
 }
 
 async function download(link, browser, {nochat, nomusic, noaudio, noteams, theme, speed, gif}) {
