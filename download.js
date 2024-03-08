@@ -18,26 +18,33 @@ async function waitUntilVictory(timeout, page, endTurn) {
     return ret
 }
 
-let last = undefined
-
-async function checkForVictory(page, endTurn) {
+async function checkForVictory(page, endTurn, logsize=0, curTurn=0) {
     try {
-        const victory = await page.$$eval('*[class="battle-history"]', (els) =>
+        const victory = await page.$$eval('div[class="battle-history"]', (els) =>
             els.map((e) => e.textContent)
         )
 
-        let latest = victory[victory.length - 1]
-        if (latest && last !== latest) {
-            if(debug) console.log(latest) // for debugging progress, would prefer a progress bar instead
-            last = latest
+        let turn = await page.$$eval('.turn', (els) => els.pop().textContent)
+            .then(it => it.charAt(it.length-1))
+
+        if (turn > curTurn) {
+            if(debug) console.log(turn)
+            curTurn = turn
+            if(endTurn <= curTurn) return
         }
-        const endViaTurn = latest === 'Turn ' + endTurn;
-        if (endViaTurn) page.keyboard.type('k') // pause
-        if (endViaTurn || latest.endsWith(" won the battle!")) return
-        // disable waiting to get a more accurate cutoff point, need to find a better way to track progress. event-based?
-        // // Wait for 1 second before calling checkForVictory again
-        // await new Promise((resolve) => setTimeout(resolve, 1000))
-        await checkForVictory(page, endTurn)
+
+        if (victory.length > logsize) {
+            if (debug) while (victory.length > logsize) console.log(victory[logsize++]);
+            else logsize = victory.length
+            if (victory[logsize-1].endsWith(" won the battle!")) {
+                // Wait for 2 seconds so that the battle has completely ended as we read the text earlier than it getting fully animated
+                await new Promise((resolve) => setTimeout(resolve, 1500))
+                return
+            }
+        }
+        // need to find a better way to track progress. event-based?
+        await new Promise((resolve) => setTimeout(resolve,1))
+        await checkForVictory(page, endTurn, logsize, curTurn)
     } catch {}
 }
 
@@ -175,8 +182,6 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
         try {
             await waitUntilVictory(150000, page, endTurn)
         } catch {}
-        // Wait for 2 seconds so that the battle has completely ended as we read the text earlier than it getting fully animated
-        await new Promise((resolve) => setTimeout(resolve, 1500))
 
         stream.destroy()
         file.close()
