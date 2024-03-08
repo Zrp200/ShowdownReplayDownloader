@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "discord.js": "^14.13.0",
+    "cli-progress": "^3.12.0",
     "fluent-ffmpeg": "^2.1.2",
     "opener": "*",
     "puppeteer": "^21.1.1",

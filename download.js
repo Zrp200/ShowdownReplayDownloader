@@ -3,6 +3,7 @@ const ffmpeg = require("fluent-ffmpeg")
 const fs = require("fs")
 const yargs = require("yargs")
 const open = require("opener");
+const progress = require("cli-progress")
 
 async function waitUntilVictory(timeout, page, endTurn) {
     let ret = new Promise(async (resolve, reject) => {
@@ -78,6 +79,42 @@ async function fixwebm(file, tmpFile) {
 
         command.run()
     })
+}
+
+async function makeGif(file) {
+    const bar = new progress.SingleBar()
+    console.log('starting Gif creation')
+    const [filename,] = file.split('.', 1)
+    const palette = filename + '.png'
+    const gif = filename + '.gif'
+    const withBar = (resolve, reject, s) => s
+        .on('start', () => bar.start(100, 0))
+        .on('progress', ({percent}) => {
+            bar.update(percent)
+            bar.render()
+        })
+        .on('end', () => {
+            bar.update(100)
+            bar.stop()
+            resolve()
+        })
+        .on('error', reject)
+    console.log()
+    return new Promise((resolve, reject) => withBar(resolve, reject, ffmpeg(file))
+        .inputOptions('-y')
+        .outputOptions("-vf palettegen")
+        .save(palette)
+    ).then(() => new Promise((resolve, reject) => withBar(resolve, reject, ffmpeg())
+            .addInput(file)
+            .addInput(palette)
+            .addInputOption("-filter_complex paletteuse")
+            .addInputOption("-r 10")
+            .outputFPS(20)
+            .save(gif)
+        )
+    )
+        .then(() => fs.rmSync(palette))
+        .catch(console.error)
 }
 
 async function download(link, browser, nochat, nomusic, noaudio, noteams, theme, speed) {
@@ -200,15 +237,20 @@ async function download(link, browser, nochat, nomusic, noaudio, noteams, theme,
         file.close()
 
         console.log(`Finished recording ${link}`)
+        try {
+            page.close()
+        } catch (error) {
+            console.error(error)
+        }
+
         await fixwebm(filename, tmpFile) // metadata needs to be added for seeking video
         console.log("Recording Saved!\nLocation -> " + filename)
-        if(debug) open('./' + filename)
-
-        try {
-            await page.close()
-        } catch (error) {
-            console.log(error)
+        if (debug) open('./' + filename)
+        if (gif) {
+            await makeGif(filename)
+            if (debug) open('./' + filename.split('.')[0] + ".gif")
         }
+
     } catch (err) {
         console.log(`An error occured while downloading ${link}\n` + err)
     } finally {
@@ -272,6 +314,10 @@ const argv = yargs(process.argv.slice(2))
         describe: 'enable debug functionality - automatically open image and print battle log to console',
         type: 'boolean',
         default: 'false'
+    })
+    .option("gif", {
+        type: "boolean",
+        default: false,
     })
     .help("h")
     .alias("h", "help").argv
