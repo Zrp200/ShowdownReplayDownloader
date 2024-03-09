@@ -267,8 +267,8 @@ async function download(link, browser, {show, audio, theme, speed, gif}) {
             }
         } catch {}
 
-        stream.destroy()
-        file.close()
+        await stream.destroy()
+        await file.close()
 
         console.log(`Finished recording ${link}`)
         try {
