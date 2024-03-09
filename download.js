@@ -23,10 +23,12 @@ async function checkForVictory(page, endTurn, bar, state = {turn: 0, part: 0, lo
     try {
         const [victory, msg, turn] = await Promise.all([
             page.$$eval('div[class="battle-history"]', els => els.map(e => e.textContent)),
-            page.$$eval('*[class="messagebar message"]', els => els.map(e => e.textContent)),
+            debug || endTurn ? page.$$eval('*[class="messagebar message"]', els => els.map(e => e.textContent))
+                .catch(()=>[]) : [],
             page.$$eval('.turn', els => els.pop().textContent)
                 .then(it => it.split(' ')[1])
-                .then(parseInt),
+                .then(parseInt)
+                .catch(() => 0),
         ])
 
         if (turn > state.turn) {
@@ -37,7 +39,7 @@ async function checkForVictory(page, endTurn, bar, state = {turn: 0, part: 0, lo
                 bar.render()
             }
             state.part = 0
-            if (turn >= endTurn) return
+            if (endTurn && turn >= endTurn) return
         }
 
         // noinspection EqualityComparisonWithCoercionJS
@@ -172,7 +174,7 @@ async function download(link, browser, {show, audio, theme, speed, gif}) {
     let endTurn = parseInt(matches[matches.length - 1][1]);
     let playToVictory = true;
     if (turns && turns.end) {
-        if (turns.end > endTurn) {
+        if (parseInt(turns.end) > endTurn) {
             console.log(`Invalid end turn ${turns.end} (total turns=${endTurn})`);
             return;
         } else if (endTurn !== turns.end) {
