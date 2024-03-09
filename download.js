@@ -286,7 +286,8 @@ async function download(link, browser, {show, audio, theme, speed, gif}) {
         }
 
     } catch (err) {
-        console.log(`An error occured while downloading ${link}\n` + err)
+        console.error(`An error occured while downloading ${link}`)
+        console.error(err)
     } finally {
         try { fs.unlinkSync(tmpFile) } catch {}
     }
