@@ -3,9 +3,9 @@ const ffmpeg = require("fluent-ffmpeg")
 const fs = require("fs")
 const yargs = require("yargs")
 const open = require("opener");
-const progress = require("cli-progress")
+const {MultiBar, SingleBar} = require("cli-progress");
 
-async function waitUntilVictory(timeout, page, endTurn) {
+async function waitUntilVictory(timeout, page, endTurn, bar) {
     let ret = new Promise(async (resolve, reject) => {
         setTimeout(() => {
             if (!ret.isResolved) {
@@ -13,13 +13,13 @@ async function waitUntilVictory(timeout, page, endTurn) {
             }
         }, timeout)
 
-        await checkForVictory(page, endTurn)
+        await checkForVictory(page, endTurn, bar)
         resolve()
     })
     return ret
 }
 
-async function checkForVictory(page, endTurn, state = {turn: 0, part: 0, logSize: 0, msg: null}) {
+async function checkForVictory(page, endTurn, bar, state = {turn: 0, part: 0, logSize: 0, msg: null}) {
     try {
         const [victory, msg, turn] = await Promise.all([
             page.$$eval('div[class="battle-history"]', els => els.map(e => e.textContent)),
@@ -32,6 +32,10 @@ async function checkForVictory(page, endTurn, state = {turn: 0, part: 0, logSize
         if (turn > state.turn) {
             if (debug) console.log(turn)
             state.turn = turn
+            if (bar) {
+                bar.increment()
+                bar.render()
+            }
             state.part = 0
             if (turn >= endTurn) return
         }
@@ -58,7 +62,7 @@ async function checkForVictory(page, endTurn, state = {turn: 0, part: 0, logSize
         }
 
         //await new Promise((resolve) => setTimeout(resolve, 1))
-        await checkForVictory(page, endTurn, state)
+        await checkForVictory(page, endTurn, bar, state)
     } catch {}
 }
 
@@ -82,19 +86,23 @@ async function fixwebm(file, tmpFile) {
 }
 
 async function makeGif(file) {
-    const bar = new progress.SingleBar()
+    const bar = isMultiBar ? _bar.create() : _bar
     console.log('starting Gif creation')
     const [filename,] = file.split('.', 1)
     const palette = filename + '.png'
     const gif = filename + '.gif'
     const withBar = (resolve, reject, s) => s
-        .on('start', () => bar.start(100, 0))
+        .on('start', (cmd) => {
+            console.log(cmd)
+            bar.start(100, 0)
+        })
         .on('progress', ({percent}) => {
             bar.update(percent)
             bar.render()
         })
         .on('end', () => {
             bar.update(100)
+            bar.render()
             bar.stop()
             resolve()
         })
@@ -124,7 +132,10 @@ async function makeGif(file) {
         )
     )
         .catch(console.error)
-        .finally(() => fs.rmSync(palette))
+        .finally(() => {
+            if(isMultiBar) _bar.remove(bar)
+            fs.rmSync(palette)
+        })
         .catch(() => {}) // do nothing
 
 }
@@ -242,7 +253,16 @@ async function download(link, browser, {show, audio, theme, speed, gif}) {
         // Start checking for victory, upto 5 minutes (aka record time limit)
         // You might want to modify this for super long videos as with endless battle clause, a battle can last upto 1000 turns which is approx 1 hour and 56 minutes at normal speed
         try {
-            await waitUntilVictory(150000, page, endTurn)
+            const bar =
+                debug ? null : // no progress for debugging
+                    isMultiBar ? _bar.create(totalTurns+startTurn, startTurn) :
+                    _bar
+            if (bar === _bar) bar.start(totalTurns+startTurn, startTurn)
+            await waitUntilVictory(150000, page, turns ? endTurn : 0, bar)
+            if(bar) {
+                bar.stop()
+                if (isMultiBar) _bar.remove(bar)
+            }
         } catch {}
 
         stream.destroy()
@@ -319,6 +339,8 @@ const argv = yargs(process.argv.slice(2))
     .alias("h", "help").argv
 
 let debug
+let _bar
+let isMultiBar = false
 
 ;(async () => {
     //let links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
@@ -385,6 +407,10 @@ let debug
         args: args,
     })
     if (links.length > 1 && (bulk === "all" || bulk > 1)) {
+        // fixme these are all super confusing to look at when spammed like in bulk mode, need to add identifiers
+        _bar = new MultiBar()
+        isMultiBar = true
+
         let bulkRecord = []
         for (let recordLinks of toRecord) {
             for (let link of recordLinks) bulkRecord.push(download(link, browser, argv))
@@ -393,6 +419,8 @@ let debug
             bulkRecord = [] // reset array
         }
     } else {
+        _bar = new SingleBar()
+        isMultiBar = false
         for (let link of links) await download(link, browser, argv) // record one by one
     }
     console.log("Thank you for utilising Showdown Replay Downloader!!")
