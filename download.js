@@ -129,7 +129,7 @@ async function makeGif(file) {
 
 }
 
-async function download(link, browser, {nochat, nomusic, noaudio, noteams, theme, speed, gif}) {
+async function download(link, browser, {show, audio, theme, speed, gif}) {
     let turns
     if (typeof link === 'object') {
         turns = link.turns
@@ -190,17 +190,17 @@ async function download(link, browser, {nochat, nomusic, noaudio, noteams, theme
                     margin: 0 0 !important;
                 }
                 
-                ${noteams ? ".leftbar, .rightbar { display: none; }" : ""}
+                ${show === 'none' ? ".leftbar, .rightbar { display: none; }" : ""}
                 
                 .battle {
                     top: 0px !important;
                     left: 0px !important;
-                    ${nochat ? "margin: 0 !important;" : ""}
+                    ${show !== 'chat' ? "margin: 0 !important;" : ""}
                 }
                 .battle-log {
                     top: 0px !important;
                     left: 641px !important;
-                    ${nochat ? "display: none !important;" : ""}
+                    ${show !== 'chat' ? "display: none !important;" : ""}
                 }
                 `,
         })
@@ -211,8 +211,8 @@ async function download(link, browser, {nochat, nomusic, noaudio, noteams, theme
         // if (totalTurns > 20) speed = "fast"
         if (speed !== "normal") await page.select('select[name="speed"]', speed)
 
-        if (nomusic) await page.select('select[name="sound"]', "musicoff")
-        else if (noaudio) await page.select('select[name="sound"]', "off")
+        if (audio !== 'all') await page.select('select[name="sound"]', audio === 'sfx' ? 'musicoff' : 'off')
+
         // Theme
         if (theme !== "auto")
             await page.select('select[name="darkmode"]', theme)
@@ -224,7 +224,7 @@ async function download(link, browser, {nochat, nomusic, noaudio, noteams, theme
                 #LeaderboardBTF { display: none !important; }`,
         })
         const stream = await getStream(page, {
-            audio: !noaudio, // no longer a necessity, can be left as true
+            audio: audio !== 'none', // no longer a necessity, can be left as true
             video: true,
         })
         await page.keyboard.type('k')
@@ -275,23 +275,12 @@ const generateRandom = () =>
     Math.random().toString(23).substring(2, 5) // simplistic simple https://stackoverflow.com/a/71262982/14393614
 
 const argv = yargs(process.argv.slice(2))
-    .usage('Usage: $0 -l "[replays]"')
-    .demandOption(["links"])
-    .option("links", {
-        alias: "l",
-        describe: "List of ps replay links separated by a comma or space",
-        type: "string",
-        demandOption: true,
-    })
-    .option("nomusic", {
-        describe: "Disable music (battle cries don't get muted)",
-        type: "boolean",
-        default: false,
-    })
-    .option("noaudio", {
-        describe: "Disable audio (disables music too obviously)",
-        type: "boolean",
-        default: false,
+    .usage('Usage: $0 "[ replay [ [start]-[end[.part] ] ]...] [opts]"')
+    // TODO convert to proper positional command so links can be properly checked
+    .option("audio", {
+        describe: "Audio to include",
+        choices: ['all', 'sfx', 'none'],
+        default: 'all',
     })
     .option("speed", {
         alias: "s",
@@ -299,15 +288,10 @@ const argv = yargs(process.argv.slice(2))
         choices: ["normal", "fast", "slow", "really slow", "really fast"],
         default: "normal",
     })
-    .option("nochat", {
-        describe: "Will not record chat",
-        type: "boolean",
-        default: false,
-    })
-    .option("noteams", {
-        describe: "Will not show teams",
-        type: "boolean",
-        default: false,
+    .option("show", {
+        describe: "Option to omit chat or teams. Omitting teams necessarily omits chat.",
+        choices: ['chat', 'teams', 'none'],
+        default: 'chat',
     })
     .option("theme", {
         alias: "t",
@@ -337,11 +321,14 @@ const argv = yargs(process.argv.slice(2))
 let debug
 
 ;(async () => {
-    let links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
+    //let links = argv.links.split(/[\s,]+/).filter(Boolean) // https://stackoverflow.com/a/23728809/14393614
+    let links = argv._
     debug = argv.debug
     let bulk = argv.bulk
 
+    // fixme change input to something actually reasonable lmao
     for (let i = links.length - 1; i > 0; i--) {
+        // I'd prefer not having to split like this, but I need to be able to specify start OR end
         let match = links[i].match(/(\d+)?-((?:[0-9]*[.])?[0-9]+)?/);
         if (match) {
             links.splice(i, 1) // remove at this index
@@ -388,7 +375,7 @@ let debug
     }
 
     let width = 1175
-    if (argv.nochat) width -= 517
+    if (argv.show !== 'chat') width -= 517
     const height = 546 // 340 original (added +200 due to two chrome's popups 100h each of (a) -> download non-test version chrome and (b) -> Chrome is being controlled by automated test software)
     const args = [`--window-size=${width},${height}`, `--headless=new`]
 
