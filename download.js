@@ -129,7 +129,7 @@ async function makeGif(file) {
             .addInput(palette)
             .addInputOption("-filter_complex paletteuse")
             .addInputOption("-r 10")
-            .outputFPS(20) // todo automatically determine fps by duration
+            .outputFPS(15) // todo automatically determine fps by duration
             .save(gif)
         )
     )
