@@ -139,6 +139,7 @@ async function makeGif(file) {
         .finally(() => {
             if(isMultiBar) _bar.remove(bar)
             fs.rmSync(palette)
+            return open(gif)
         })
         .catch(() => {}) // do nothing
 
@@ -282,10 +283,9 @@ async function download(link, browser, {show, audio, theme, speed, gif}) {
 
         await fixwebm(filename, tmpFile) // metadata needs to be added for seeking video
         console.log("Recording Saved!\nLocation -> " + filename)
-        if (debug) open('./' + filename)
+        open('./' + filename)
         if (gif) {
             await makeGif(filename)
-            if (debug) open('./' + filename.split('.')[0] + ".gif")
         }
 
     } catch (err) {
