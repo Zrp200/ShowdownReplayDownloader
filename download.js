@@ -46,7 +46,9 @@ async function checkForVictory(page, endTurn, bar, state = {turn: 0, part: 0, lo
         if (String(msg) != String(state.msg)) {
             // split the turn into sections based on message log state
             state.msg = msg
-            const turnPart = parseFloat(turn + '.' + ++state.part)
+            // weakness of this strategy is I need the leading 0, since some turns can have more than 9 parts.
+            const part = ++state.part < 10 ? '0' + state.part : state.part;
+            const turnPart = parseFloat(turn + '.' + part)
             if (debug) console.log(turnPart)
             if (turnPart === endTurn) return
         }
