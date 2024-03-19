@@ -242,8 +242,9 @@ async function download(link, browser, {show, audio, theme, speed, gif}) {
             audio: audio !== 'none', // no longer a necessity, can be left as true
             video: true,
         })
-        await page.keyboard.type('k')
         stream.pipe(file)
+        if (startTurn !== 0) await new Promise(resolve => setTimeout(resolve, 250)) // there's a little delay before it actually starts capturing.
+        await page.keyboard.type('k')
 
         console.log(
             `Opened replay ${data.players[0]} vs ${data.players[1]} (${
