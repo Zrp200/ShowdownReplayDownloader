@@ -356,14 +356,23 @@ let isMultiBar = false
     // fixme change input to something actually reasonable lmao
     for (let i = links.length - 1; i > 0; i--) {
         // I'd prefer not having to split like this, but I need to be able to specify start OR end
-        let match = links[i].match(/(\d+)?-((?:[0-9]*[.])?[0-9]+)?/);
-        if (match) {
-            links.splice(i, 1) // remove at this index
-            links[i - 1] = {
-                link: links[i - 1],
-                turns: {start: match[1] && parseInt(match[1]), end: match[2] && parseFloat(match[2])}
-            };
-            i--;
+        let turnSplits = []
+        while(true) {
+            if (typeof links[i] === 'number') {
+                turnSplits.push({start: links[i], end: links[i]+1})
+            } else {
+                const match = links[i].match(/^(\d+)?-((?:[0-9]*[.])?[0-9]+)?$/)
+                if (!match) break;
+                turnSplits.push({start: match[1] && parseInt(match[1]), end: match[2] && parseFloat(match[2])})
+            }
+            links.splice(i, 1)
+            if (--i < 0) return;
+        }
+        if (!turnSplits) continue;
+        const link = links[i];
+        links.splice(i, 1);
+        for (let turns of turnSplits) {
+            links.push({link, turns});
         }
     }
 
